@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>My App</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+    <style>
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 30%;
+        }
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-center mt-4">Welcome to My App</h1>
+
+        <button id="loginBtn" class="btn btn-primary mt-4">Login</button>
+
+        <!-- Модальное окно входа -->
+        <div id="loginModal" class="modal">
+        <div class="modal-content">
+            <span class="close">×</span>
+            <h2>Login</h2>
+            <input type="text" id="username" placeholder="Username">
+            <input type="password" id="password" placeholder="Password">
+            <button onclick="login()">Login</button>
+        </div>
+    </div>
+
+    <div id="orgDiv" style="display: none;">
+        <h2>Add Organization</h2>
+        <input type="text" id="orgName" placeholder="Organization Name">
+        <input type="text" id="orgAddress" placeholder="Organization Address">
+        <button onclick="addOrganization()">Add Organization</button>
+    </div>
+
+    <h2>Organizations</h2>
+    <ul id="orgList"></ul>
+
+    <h2>Add Review</h2>
+    <select id="orgSelect"></select>
+    <input type="number" id="rating" min="1" max="5" placeholder="Rating">
+    <input type="text" id="review" placeholder="Review">
+    <button onclick="addReview()">Add Review</button>
+
+    <h2>Reviews</h2>
+    <ul id="reviewList"></ul>
+    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
+    <script>
+        var isAdmin = false;
+        var modal = document.getElementById("loginModal");
+        var btn = document.getElementById("loginBtn");
+        var span = document.getElementsByClassName("close")[0];
+
+        btn.onclick = function() {
+            modal.style.display = "block";
+        }
+
+        span.onclick = function() {
+            modal.style.display = "none";
+        }
+
+        window.onclick = function(event) {
+            if (event.target == modal) {
+                modal.style.display = "none";
+            }
+        }
+
+        function login() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            fetch('/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ username, password })
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log(data);
+                if (data.success && username === 'admin') {
+                    document.getElementById('orgDiv').style.display = 'block';
+                    isAdmin = true; // Установите isAdmin в true, если пользователь - администратор
+                }
+                modal.style.display = "none";
+                getOrganizations();
+                updateReviews();
+            });
+        }
+
+        function addOrganization() {
+    const name = document.getElementById('orgName').value;
+    const address = document.getElementById('orgAddress').value;
+
+    fetch('/add_organization', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ name, address })
+    })
+    .then(response => response.json())
+    .then(data => {
+        console.log(data);
+        getOrganizations(); // Обновите список организаций после добавления новой организации
+    });
+}
+
+        function getOrganizations() {
+            fetch('/organizations')
+            .then(response => response.json())
+            .then(data => {
+                const orgList = document.getElementById('orgList');
+                const orgSelect = document.getElementById('orgSelect');
+                orgList.innerHTML = '';
+                orgSelect.innerHTML = '';
+                data.forEach(org => {
+                    const li = document.createElement('li');
+                    li.textContent = org.name + ', ' + org.address; // Используйте имя организации
+
+                    if (isAdmin) { // Показывайте кнопки только если пользователь - администратор
+                        const editButton = document.createElement('button');
+                        editButton.textContent = 'Edit';
+                        editButton.onclick = function() {
+                        const newName = prompt('Enter new name for the organization');
+                        const newAddress = prompt('Enter new address for the organization');
+                        fetch(`/edit_organization/${org.id}`, {
+                            method: 'PUT',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ name: newName, address: newAddress })
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            console.log(data);
+                            getOrganizations();
+                        });
+                    };
+                    li.appendChild(editButton);
+
+                    const deleteButton = document.createElement('button');
+                        deleteButton.textContent = 'Delete';
+                        deleteButton.onclick = function() {
+                        fetch(`/delete_organization/${org.id}`, {
+                            method: 'DELETE'
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            console.log(data);
+                            getOrganizations();
+                        });
+                    };
+                    li.appendChild(deleteButton);
+                }
+                    orgList.appendChild(li);
+
+                    const option = document.createElement('option');
+                    option.value = org.name; // Используйте имя организации в качестве значения
+                    option.textContent = org.name;
+                    orgSelect.appendChild(option);
+                });
+            });
+        }
+
+        function addReview() {
+            const org_name = document.getElementById('orgSelect').value;
+            const rating = document.getElementById('rating').value;
+            const review = document.getElementById('review').value;
+
+            // Получить id организации по ее имени
+            fetch(`/get_org_id/${org_name}`)
+            .then(response => response.json())
+            .then(data => {
+                const org_id = data.id;
+
+                fetch(`/add_review/${org_id}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ user_id: 1, rating, review }) // замените user_id на идентификатор текущего пользователя
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log(data);
+                    getReviews(org_id);
+                });
+            });
+        }
+
+        function getReviews(org_id) {
+            fetch(`/get_reviews/${org_id}`)
+            .then(response => response.json())
+            .then(data => {
+                const reviewList = document.getElementById('reviewList');
+                reviewList.innerHTML = '';
+                data.forEach(rev => {
+                    const li = document.createElement('li');
+                    li.textContent = `Rating: ${rev.rating}, Review: ${rev.review}`;
+                    reviewList.appendChild(li);
+                });
+            });
+        }
+
+        function updateReviews() {
+    const org_name = document.getElementById('orgSelect').value;
+    if (org_name) {
+        fetch(`/get_org_id/${org_name}`)
+        .then(response => response.json())
+        .then(data => {
+            const org_id = data.id;
+            getReviews(org_id);
+        });
+    }
+}
+
+document.getElementById('orgSelect').addEventListener('change', function() {
+    updateReviews();
+});
+
+setInterval(function() {
+    const org_name = document.getElementById('orgSelect').value;
+    if (org_name) {
+        fetch(`/get_org_id/${org_name}`)
+        .then(response => response.json())
+        .then(data => {
+            const org_id = data.id;
+            getReviews(org_id);
+        });
+    }
+}, 5000);
+
+window.onload = function() {
+    modal.style.display = "block";
+    getOrganizations(); // Получите список организаций при загрузке страницы
+}
+    </script>
+</body>
+</html>
